@@ -44,22 +44,11 @@ def download_papers_from_dois(doi_data, output_dir="papers"):
     # doi_data 是一个元组列表，每个元组包含 (doi, file_path, row_index)
     for doi, file_path, row_index in tqdm(doi_data, desc="下载进度", unit="paper"):
         try:
-            # 使用Crossref REST API获取文章信息
-            url = f"https://api.crossref.org/works/{doi}"
-            response = requests.get(url)
+            url = f"https://api.unpaywall.org/v2/{doi}?email=email@163.com"
+            response = requests.get(url).json()
             
-            if response.status_code == 200:
-                data = response.json()
-                message = data.get("message", {})
-                link = message.get("link", [])
-                
-                # 查找PDF链接
-                pdf_url = None
-                for item in link:
-                    if item.get("content-type") == "application/pdf":
-                        pdf_url = item.get("URL")
-                        break
-                
+            if "best_oa_location" in response and response["best_oa_location"]:
+                pdf_url = response["best_oa_location"]["url_for_pdf"]
                 if pdf_url:
                     paper = requests.get(pdf_url, verify=False)
                     with open(f"{output_dir}/{doi.replace('/', '_')}.pdf", "wb") as f:
@@ -75,7 +64,7 @@ def download_papers_from_dois(doi_data, output_dir="papers"):
                 else:
                     print(f"No PDF found for {doi}")
             else:
-                print(f"Error fetching data for {doi}: {response.status_code}")
+                print(f"No open access version for {doi}")
         except Exception as e:
             print(f"Error downloading {doi}: {str(e)}")
 
