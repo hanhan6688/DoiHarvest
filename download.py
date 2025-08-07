@@ -23,15 +23,15 @@ def download_worker(queue, success_log, error_log, failed_dois):
         doi, title = queue.get()
         try:
             doi_link = f'https://doi.org/{doi}' if doi else 'No DOI'
-            # 修改：无论下载是否成功，只要有DOI就记录到success_log中
-            if doi:  # 只有当DOI存在时才记录
-                success_log.append((title, doi_link))  # 存储标题和DOI链接
             file_name = f"{clean_filename(title)}.pdf"
             file_path = os.path.join("output", file_name)
             
             # 跳过已下载文件
             if os.path.exists(file_path):
                 success_log.append(f"[SKIPPED] {doi} | {file_name}\n")
+                # 只有当DOI存在时才记录到success_log
+                if doi:  
+                    success_log.append((title, doi_link))  # 存储标题和DOI链接
                 queue.task_done()
                 continue
             # 随机延迟防封禁
@@ -60,7 +60,10 @@ def download_worker(queue, success_log, error_log, failed_dois):
                         for chunk in pdf_resp.iter_content(chunk_size=1024):
                             if chunk: f.write(chunk)
                     
+                    # 只有实际下载成功才记录到success_log
                     success_log.append(f"[SUCCESS] {doi} | {file_name}\n")
+                    if doi:  # 只有当DOI存在时才记录
+                        success_log.append((title, doi_link))  # 存储标题和DOI链接
                     break  # 下载成功则跳出重试循环
                     
                 except Exception as e:
@@ -194,6 +197,10 @@ def main():
             if 'DOI Link' not in df.columns:
                 df.insert(2, 'DOI Link', '')
             
+            # 确保有Download Status列
+            if 'Download Status' not in df.columns:
+                df['Download Status'] = ''
+            
             # 更新文献的DOI链接（包括成功和失败的）
             for item in success_log:
                 if isinstance(item, tuple):
@@ -202,6 +209,8 @@ def main():
                     # 只有当DOI链接不为空且不是'No DOI'时才更新
                     if doi_link and doi_link != 'No DOI':
                         df.loc[mask, 'DOI Link'] = doi_link
+                        # 下载成功时更新Download Status为111
+                        df.loc[mask, 'Download Status'] = 111
             
             # 保存更新（使用openpyxl引擎）
             df.to_excel(excel_file, index=False, engine='openpyxl')
